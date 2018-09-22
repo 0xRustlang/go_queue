@@ -2,17 +2,22 @@
 
 package go_queue
 
+import (
+	"sync"
+)
+
 type Node struct {
 	Value string
 }
 
 // Queue is a basic FIFO queue based on a circular list that resizes as needed.
 type Queue struct {
-	nodes []*Node
-	size  int
-	head  int
-	tail  int
-	count int
+	nodes       []*Node
+	size        int
+	head        int
+	tail        int
+	count       int
+	lock_Mutex  sync.Mutex
 }
 
 // NewQueue returns a new queue with the given initial size.
@@ -29,6 +34,8 @@ func (q *Queue) Size() int {
 
 // Push adds a node to the queue.
 func (q *Queue) Push(n *Node) {
+	q.lock_Mutex.Lock()
+
 	//if log1==nil { log1 = stdlog.GetFromFlags() }	// declarated in tools.audioplayback.go
 	//fmt.Printf("Queue Push: q.head=%d q.tail=%d q.count=%d\n",q.head,q.tail,q.count)
 	q.count++
@@ -46,6 +53,7 @@ func (q *Queue) Push(n *Node) {
 		if i>=q.size { i=0 }
 	}
 	*/
+	q.lock_Mutex.Unlock()
 }
 
 // Pop removes and returns a node from the queue in first to last order.
@@ -55,6 +63,7 @@ func (q *Queue) PopOldest() *Node {
 		return nil
 	}
 
+	q.lock_Mutex.Lock()
 	q.count--
 
 	node := q.nodes[q.head] // head points to the oldest entry
@@ -68,6 +77,7 @@ func (q *Queue) PopOldest() *Node {
 		if i>=q.size { i=0 }
 	}
 	*/
+	q.lock_Mutex.Unlock()
 	return node
 }
 
@@ -78,6 +88,7 @@ func (q *Queue) Pop() *Node {
 		return nil
 	}
 
+	q.lock_Mutex.Lock()
 	q.count--
 
 	q.tail = (q.tail - 1)
@@ -94,6 +105,7 @@ func (q *Queue) Pop() *Node {
 		if i>=q.size { i=0 }
 	}
 	*/
+	q.lock_Mutex.Unlock()
 	return node
 }
 
@@ -105,10 +117,12 @@ func (q *Queue) InQueue(search string) bool {
 		return false
 	}
 
+	q.lock_Mutex.Lock()
 	//fmt.Printf("InQueue: q.head=%d q.tail=%d\n",q.head,q.tail)
 	for i := q.head; i != q.tail; {
 		if search == q.nodes[i].Value {
 			//log1.Debugf("InQueue: "+search+" / "+q.nodes[i].Value+" [%d] FOUND", i)
+			q.lock_Mutex.Unlock()
 			return true
 		}
 		//fmt.Printf("InQueue: "+search+" / "+q.nodes[i].Value+" [%d] not found\n",i)
@@ -117,5 +131,6 @@ func (q *Queue) InQueue(search string) bool {
 			i = 0
 		}
 	}
+	q.lock_Mutex.Unlock()
 	return false
 }
