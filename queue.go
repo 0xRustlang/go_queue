@@ -17,7 +17,7 @@ type Queue struct {
 	head        int
 	tail        int
 	count       int
-	lock_Mutex  sync.Mutex
+	lock_Mutex  sync.RWMutex
 }
 
 // NewQueue returns a new queue with the given initial size.
@@ -29,18 +29,27 @@ func NewQueue(size int) *Queue {
 }
 
 func (q *Queue) Size() int {
+	q.lock_Mutex.Lock()
+	defer q.lock_Mutex.Unlock()
 	return q.size
+}
+
+func (q *Queue) Count() int {
+	q.lock_Mutex.RLock()
+	defer q.lock_Mutex.RUnlock()
+	return q.count
 }
 
 // Push adds a node to the queue.
 func (q *Queue) Push(n *Node) {
 	q.lock_Mutex.Lock()
+	defer q.lock_Mutex.Unlock()
 
 	//if log1==nil { log1 = stdlog.GetFromFlags() }	// declarated in tools.audioplayback.go
 	//fmt.Printf("Queue Push: q.head=%d q.tail=%d q.count=%d\n",q.head,q.tail,q.count)
 	q.count++
 	if q.count >= q.size {
-		q.Pop()
+		q.PopOldest(true)
 		//log1.Debugf("Queue Push: pop one: q.head=%d q.tail=%d q.count=%d", q.head, q.tail, q.count)
 	}
 	q.nodes[q.tail] = n
@@ -53,17 +62,19 @@ func (q *Queue) Push(n *Node) {
 		if i>=q.size { i=0 }
 	}
 	*/
-	q.lock_Mutex.Unlock()
 }
 
 // Pop removes and returns a node from the queue in first to last order.
-func (q *Queue) PopOldest() *Node {
+func (q *Queue) PopOldest(skiplock bool) *Node {
 	//if log1==nil { log1 = stdlog.GetFromFlags() }
+	if !skiplock {
+		q.lock_Mutex.Lock()
+		defer q.lock_Mutex.Unlock()
+	}
 	if q.count == 0 {
 		return nil
 	}
 
-	q.lock_Mutex.Lock()
 	q.count--
 
 	node := q.nodes[q.head] // head points to the oldest entry
@@ -77,23 +88,23 @@ func (q *Queue) PopOldest() *Node {
 		if i>=q.size { i=0 }
 	}
 	*/
-	q.lock_Mutex.Unlock()
 	return node
 }
 
 // Pop removes and returns a node from the queue in first to last order.
 func (q *Queue) Pop() *Node {
 	//if log1==nil { log1 = stdlog.GetFromFlags() }
+	q.lock_Mutex.Lock()
+	defer q.lock_Mutex.Unlock()
 	if q.count == 0 {
 		return nil
 	}
 
-	q.lock_Mutex.Lock()
 	q.count--
 
 	q.tail = (q.tail - 1)
 	if q.tail < 0 {
-		q.tail = len(q.nodes)
+		q.tail = len(q.nodes)-1
 	}
 	node := q.nodes[q.tail]
 
@@ -105,24 +116,23 @@ func (q *Queue) Pop() *Node {
 		if i>=q.size { i=0 }
 	}
 	*/
-	q.lock_Mutex.Unlock()
 	return node
 }
 
 func (q *Queue) InQueue(search string) bool {
 	//if log1==nil { log1 = stdlog.GetFromFlags() }
+	q.lock_Mutex.RLock()
+	defer q.lock_Mutex.RUnlock()
 	//fmt.Printf("InQueue: "+search+" q.count=%d %d\n",q.count,q.head)
 	if q.count == 0 {
 		//fmt.Printf("InQueue: empty\n")
 		return false
 	}
 
-	q.lock_Mutex.Lock()
 	//fmt.Printf("InQueue: q.head=%d q.tail=%d\n",q.head,q.tail)
 	for i := q.head; i != q.tail; {
 		if search == q.nodes[i].Value {
 			//log1.Debugf("InQueue: "+search+" / "+q.nodes[i].Value+" [%d] FOUND", i)
-			q.lock_Mutex.Unlock()
 			return true
 		}
 		//fmt.Printf("InQueue: "+search+" / "+q.nodes[i].Value+" [%d] not found\n",i)
@@ -131,6 +141,6 @@ func (q *Queue) InQueue(search string) bool {
 			i = 0
 		}
 	}
-	q.lock_Mutex.Unlock()
 	return false
 }
+
